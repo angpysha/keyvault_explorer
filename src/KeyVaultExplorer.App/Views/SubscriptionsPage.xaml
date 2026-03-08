@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="KeyVaultExplorer.App.Views.SubscriptionsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:models="clr-namespace:KeyVaultExplorer.App.Models"
+    xmlns:viewModels="clr-namespace:KeyVaultExplorer.App.ViewModels"
+    x:DataType="viewModels:SubscriptionsViewModel"
+    Title="Subscriptions">
+
+    <Grid
+        Padding="24"
+        RowDefinitions="Auto,Auto,Auto,*,Auto"
+        RowSpacing="16">
+
+        <VerticalStackLayout Grid.Row="0" Spacing="4">
+            <Label
+                Text="Connect with Azure CLI"
+                FontSize="28"
+                SemanticProperties.HeadingLevel="Level1" />
+            <Label
+                Text="This app uses the active az login session from your terminal."
+                TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+        </VerticalStackLayout>
+
+        <Border Grid.Row="1" Padding="16">
+            <VerticalStackLayout Spacing="8">
+                <Label
+                    Text="{Binding StatusMessage}"
+                    IsVisible="{Binding HasStatus}" />
+                <Label
+                    Text="{Binding ErrorMessage}"
+                    IsVisible="{Binding HasError}"
+                    TextColor="{StaticResource Magenta}" />
+            </VerticalStackLayout>
+        </Border>
+
+        <Grid
+            Grid.Row="2"
+            ColumnDefinitions="*,Auto"
+            ColumnSpacing="12">
+            <SearchBar
+                Grid.Column="0"
+                Placeholder="Search by name, tenant, user, or subscription id"
+                Text="{Binding SearchText}" />
+            <Button
+                Grid.Column="1"
+                Command="{Binding RefreshCommand}"
+                Text="Refresh" />
+        </Grid>
+
+        <RefreshView
+            Grid.Row="3"
+            Command="{Binding RefreshCommand}"
+            IsRefreshing="{Binding IsBusy}">
+            <CollectionView
+                ItemsSource="{Binding Subscriptions}"
+                SelectedItem="{Binding SelectedSubscription, Mode=TwoWay}"
+                SelectionMode="Single">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout Padding="0,32" Spacing="8">
+                        <Label
+                            HorizontalTextAlignment="Center"
+                            Text="No subscriptions available." />
+                        <Label
+                            HorizontalTextAlignment="Center"
+                            Text="Run az login and refresh the list."
+                            TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:SubscriptionInfo">
+                        <Border Margin="0,0,0,12" Padding="16">
+                            <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                <Label
+                                    FontAttributes="Bold"
+                                    FontSize="18"
+                                    Text="{Binding Name}" />
+                                <Label
+                                    Grid.Row="1"
+                                    Text="{Binding Id}"
+                                    TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+                                <HorizontalStackLayout Grid.Row="2" Spacing="12">
+                                    <Label Text="{Binding TenantId, StringFormat='Tenant: {0}'}" />
+                                    <Label Text="{Binding UserName, StringFormat='User: {0}'}" />
+                                    <Label Text="{Binding State}" />
+                                </HorizontalStackLayout>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+
+        <Button
+            Grid.Row="4"
+            Command="{Binding OpenVaultsCommand}"
+            IsEnabled="{Binding CanContinue}"
+            Text="Open Vaults" />
+    </Grid>
+</ContentPage>

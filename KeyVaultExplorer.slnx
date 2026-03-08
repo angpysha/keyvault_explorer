@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KeyVaultExplorer.App/KeyVaultExplorer.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KeyVaultExplorer.App.Tests/KeyVaultExplorer.App.Tests.csproj" />
+  </Folder>
+</Solution>

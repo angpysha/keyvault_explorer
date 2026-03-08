@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="KeyVaultExplorer.App.Views.VaultsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:models="clr-namespace:KeyVaultExplorer.App.Models"
+    xmlns:viewModels="clr-namespace:KeyVaultExplorer.App.ViewModels"
+    x:DataType="viewModels:VaultsViewModel"
+    Title="Vaults">
+
+    <Grid
+        Padding="24"
+        RowDefinitions="Auto,Auto,Auto,*"
+        RowSpacing="16">
+
+        <VerticalStackLayout Grid.Row="0" Spacing="4">
+            <Label
+                FontSize="28"
+                SemanticProperties.HeadingLevel="Level1"
+                Text="{Binding HeaderTitle}" />
+            <Label
+                Text="Select a Key Vault to browse its secrets."
+                TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+        </VerticalStackLayout>
+
+        <Border Grid.Row="1" Padding="16">
+            <VerticalStackLayout Spacing="8">
+                <Label
+                    Text="{Binding StatusMessage}"
+                    IsVisible="{Binding HasStatus}" />
+                <Label
+                    Text="{Binding ErrorMessage}"
+                    IsVisible="{Binding HasError}"
+                    TextColor="{StaticResource Magenta}" />
+            </VerticalStackLayout>
+        </Border>
+
+        <Grid
+            Grid.Row="2"
+            ColumnDefinitions="*,Auto"
+            ColumnSpacing="12">
+            <SearchBar
+                Grid.Column="0"
+                Placeholder="Search vaults by name, region, or resource group"
+                Text="{Binding SearchText}" />
+            <Button
+                Grid.Column="1"
+                Command="{Binding RefreshCommand}"
+                Text="Refresh" />
+        </Grid>
+
+        <RefreshView
+            Grid.Row="3"
+            Command="{Binding RefreshCommand}"
+            IsRefreshing="{Binding IsBusy}">
+            <CollectionView ItemsSource="{Binding Vaults}">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout Padding="0,32" Spacing="8">
+                        <Label
+                            HorizontalTextAlignment="Center"
+                            Text="No Key Vault resources found." />
+                        <Label
+                            HorizontalTextAlignment="Center"
+                            Text="Check the selected subscription or your access rights."
+                            TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:VaultInfo">
+                        <Border Margin="0,0,0,12" Padding="16">
+                            <Grid
+                                ColumnDefinitions="*,Auto"
+                                RowDefinitions="Auto,Auto,Auto"
+                                RowSpacing="6">
+                                <Label
+                                    FontAttributes="Bold"
+                                    FontSize="18"
+                                    Text="{Binding Name}" />
+                                <Button
+                                    Grid.Column="1"
+                                    Grid.RowSpan="3"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenVaultCommand}"
+                                    CommandParameter="{Binding .}"
+                                    Text="Browse" />
+                                <Label
+                                    Grid.Row="1"
+                                    Text="{Binding VaultUri}"
+                                    TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+                                <HorizontalStackLayout Grid.Row="2" Spacing="12">
+                                    <Label Text="{Binding ResourceGroup, StringFormat='RG: {0}'}" />
+                                    <Label Text="{Binding Location, StringFormat='Region: {0}'}" />
+                                </HorizontalStackLayout>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+    </Grid>
+</ContentPage>
