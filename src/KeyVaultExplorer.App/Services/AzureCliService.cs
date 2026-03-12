@@ -26,7 +26,7 @@ public sealed class AzureCliService
                 IsCliInstalled: false,
                 IsLoggedIn: false,
                 ActiveSubscriptionId: null,
-                Message: "Azure CLI was not found in PATH. Install Azure CLI and run az login.");
+                Message: BuildCliMissingMessage(versionResult));
         }
 
         var accountResult = await RunAzCommandAsync("account show --output json", cancellationToken);
@@ -92,19 +92,71 @@ public sealed class AzureCliService
             return new CommandResult(false, string.Empty, "Azure CLI executable was not found.");
         }
 
+        var directResult = await RunProcessAsync(
+            CreateDirectStartInfo(executablePath, arguments),
+            cancellationToken);
+
+        if (directResult.IsSuccess)
+        {
+            return directResult;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            var shellFallbackResult = await RunProcessAsync(
+                CreateShellStartInfo(executablePath, arguments),
+                cancellationToken);
+
+            if (shellFallbackResult.IsSuccess)
+            {
+                return shellFallbackResult;
+            }
+
+            return new CommandResult(
+                false,
+                string.Empty,
+                $"Direct launch failed: {directResult.StandardError} Shell fallback failed: {shellFallbackResult.StandardError}".Trim());
+        }
+
+        return directResult;
+    }
+
+    private static ProcessStartInfo CreateDirectStartInfo(string executablePath, string arguments)
+    {
+        return new ProcessStartInfo
+        {
+            FileName = executablePath,
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+    }
+
+    private static ProcessStartInfo CreateShellStartInfo(string executablePath, string arguments)
+    {
+        var escapedExecutablePath = executablePath.Replace("\"", "\\\"");
+        var command = $"\"{escapedExecutablePath}\" {arguments}";
+
+        return new ProcessStartInfo
+        {
+            FileName = "/bin/bash",
+            Arguments = $"-lc \"{command.Replace("\"", "\\\"")}\"",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+    }
+
+    private static async Task<CommandResult> RunProcessAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
+    {
         try
         {
             using var process = new Process
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = executablePath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
+                StartInfo = startInfo
             };
 
             process.StartInfo.Environment["PATH"] = BuildProcessPathEnvironment();
@@ -142,10 +194,20 @@ public sealed class AzureCliService
                 standardOutput.ToString().Trim(),
                 standardError.ToString().Trim());
         }
-        catch (Win32Exception)
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
         {
-            return new CommandResult(false, string.Empty, "Azure CLI executable was not found.");
+            return new CommandResult(false, string.Empty, exception.Message);
         }
+    }
+
+    private static string BuildCliMissingMessage(CommandResult result)
+    {
+        if (string.IsNullOrWhiteSpace(result.StandardError))
+        {
+            return "Azure CLI was not found in PATH. Install Azure CLI and run az login.";
+        }
+
+        return $"Azure CLI is unavailable for this app build. {result.StandardError}".Trim();
     }
 
     private static string? ResolveAzureCliPath()
