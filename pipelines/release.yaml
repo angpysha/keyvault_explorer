@@ -1,0 +1,26 @@
+trigger: none
+
+# Manual trigger only
+
+variables:
+  - group: CommonVariables
+  - name: version
+    value: 1.0.0
+
+# get artifacts from pipeline build
+
+resources:
+  pipelines:
+    - pipeline: build
+      source: KeyVaultExplorer-Build
+      trigger: none
+
+steps:
+  - download: build
+    displayName: 'Download release notes artifact ⬇'
+    artifact: 'macos'
+  - download: build
+    displayName: 'Download Windows artifacts ⬇'
+    artifact: 'windows-msi'
+ # Upload artifact to github release
+  
