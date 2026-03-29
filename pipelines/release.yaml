@@ -4,8 +4,11 @@ trigger: none
 
 variables:
   - group: CommonVariables
-  - name: version
-    value: 1.0.0
+
+parameters:
+  - name: Version
+    displayName: 'Version'
+    type: string
 
 # get artifacts from pipeline build
 
@@ -22,5 +25,18 @@ steps:
   - download: build
     displayName: 'Download Windows artifacts ⬇'
     artifact: 'windows-msi'
+  - script: |
+      cp $(Agent.BuildDirectory)/build/macos/* $(Build.ArtifactStagingDirectory)/
+      cp $(Agent.BuildDirectory)/build/windows-msi/* $(Build.ArtifactStagingDirectory)/
+  - task: GitHubRelease@1
+    displayName: 'Upload release notes to GitHub Release ⬆'
+    inputs:
+      gitHubConnection: 'angpysha'
+      repositoryName: '$(Build.Repository.Name)'
+      action: 'create'
+      target: '$(Build.SourceVersion)'
+      tagSource: 'userSpecifiedTag'
+      tag: '{{ parameters.Version }}'
+      addChangeLog: false
  # Upload artifact to github release
-  
+
