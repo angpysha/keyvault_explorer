@@ -1,0 +1,125 @@
+# Azure Pipelines — build Mac Catalyst (Fastlane) and Windows MSI (WiX).
+#
+# Variables use Library variable groups only (see `variables:` below). Do not duplicate the same
+# names as inline `name`/`value` entries: in Azure DevOps, inline YAML variables override variable
+# groups, so inline defaults would block group overrides.
+#
+# Precedence (same variable name): later group wins over earlier group.
+#   1) KeyVaultExplorer-Build-Defaults — optional baseline (pool images, FASTLANE_LANE, DOTNET_VERSION, …)
+#   2) CommonVariables — org/team values; overrides any duplicate from the first group
+#
+# Create `KeyVaultExplorer-Build-Defaults` in Pipelines → Library → Variable groups with at least:
+#   MAC_VM_IMAGE, WINDOWS_VM_IMAGE, DOTNET_VERSION, FASTLANE_LANE
+#   Optional: DEVELOPMENT_TEAM, FASTLANE_TEAM_ID, NOTARY_KEYCHAIN_PROFILE, CODESIGN_*, MAC_POOL_NAME, …
+#
+# Self-hosted pools: set MAC_POOL_NAME / WINDOWS_POOL_NAME in a group and replace each stage `pool`
+# block with `pool: { name: $(MAC_POOL_NAME) }` (remove vmImage).
+#
+# macOS / Fastlane (FASTLANE_LANE=developer_id_dmg): signing + notary secrets in a group (often CommonVariables).
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+# List form required when using `group`. Order matters: the second group overrides the first for the same key.
+variables:
+  # - group: KeyVaultExplorer-Build-Defaults
+  - group: CommonVariables
+  # NOTARY_KEYCHAIN_PROFILE=KeyVaultNotaryApi
+
+stages:
+  - stage: MacBuild
+    displayName: "macOS — Fastlane"
+    pool: $(MAC_POOL_NAME)
+    jobs:
+      - job: mac_fastlane
+        displayName: "Build Mac Catalyst (Fastlane)"
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          # - task: UseDotNet@2
+          #   displayName: "Install .NET SDK"
+          #   inputs:
+          #     packageType: sdk
+          #     version: $(DOTNET_VERSION)
+          #     includePreviewVersions: true
+
+          # - script: |
+          #     set -e
+          #     dotnet --info
+          #     dotnet workload install maui --source https://api.nuget.org/v3/index.json
+          #   displayName: "Install MAUI workload"
+
+          # - script: |
+          #     set -e
+          #     ruby --version
+          #     gem install bundler --no-document
+          #     cd "$(Build.SourcesDirectory)/src/KeyVaultExplorer.App"
+          #     bundle install --path vendor/bundle
+          #   displayName: "Bundler (Gemfile)"
+
+          - script: |
+              set -e
+              cd "$(Build.SourcesDirectory)/src/KeyVaultExplorer.App"
+              bundle exec fastlane mac developer_id_dmg
+            displayName: "Run Fastlane ($(FASTLANE_LANE))"
+            env:
+              DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
+              NOTARY_KEYCHAIN_PROFILE: $(NOTARY_KEYCHAIN_PROFILE)
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish macOS artifacts"
+            inputs:
+              targetPath: "$(Build.SourcesDirectory)/artifacts/macos/KeyVaultExplorer-macos.dmg"
+              artifact: "macos"
+              publishLocation: "pipeline"
+            condition: succeeded()
+
+  # - stage: WindowsBuild
+  #   displayName: "Windows — Release + WiX MSI"
+  #   dependsOn: []
+  #   pool:
+  #     vmImage: $(WINDOWS_VM_IMAGE)
+  #   jobs:
+  #     - job: windows_msi
+  #       displayName: "Build Windows MSI"
+  #       steps:
+  #         - checkout: self
+  #           fetchDepth: 0
+
+  #         - task: UseDotNet@2
+  #           displayName: "Install .NET SDK"
+  #           inputs:
+  #             packageType: sdk
+  #             version: $(DOTNET_VERSION)
+  #             includePreviewVersions: true
+
+  #         - pwsh: |
+  #             dotnet --info
+  #             dotnet workload install maui --source https://api.nuget.org/v3/index.json
+  #           displayName: "Install MAUI workload"
+
+  #         - pwsh: |
+  #             Set-StrictMode -Version Latest
+  #             $ErrorActionPreference = "Stop"
+  #             Set-Location "$(Build.SourcesDirectory)"
+  #             dotnet tool restore
+  #             & "$(Build.SourcesDirectory)/scripts/Build-WindowsMsi.ps1"
+  #           displayName: "Publish + WiX (Build-WindowsMsi.ps1)"
+
+  #         - task: PublishPipelineArtifact@1
+  #           displayName: "Publish Windows artifacts"
+  #           inputs:
+  #             targetPath: "$(Build.SourcesDirectory)/artifacts/windows"
+  #             artifact: "windows-msi"
+  #             publishLocation: "pipeline"
+  #           condition: succeeded()

@@ -1,0 +1,8 @@
+# Bundle id matches ApplicationId in KeyVaultExplorer.App.csproj
+app_identifier("net.petrovskyi.keyvaultexplorer.app")
+
+# Optional: apple_id("you@example.com")
+# Optional: team_id("XXXXXXXXXX") # same as DEVELOPMENT_TEAM when exporting
+
+# For more information about the Appfile, see:
+#     https://docs.fastlane.tools/advanced/#appfile

@@ -54,7 +54,16 @@ dotnet build src/KeyVaultExplorer.App/KeyVaultExplorer.App.csproj -f net10.0-mac
 dotnet build src/KeyVaultExplorer.App/KeyVaultExplorer.App.csproj -f net10.0-windows10.0.19041.0
 ```
 
-6. Run the app from your target platform tooling or with `dotnet build` plus the normal MAUI launch workflow for that platform.
+6. Build a Windows MSI (WiX; run on Windows only):
+
+```powershell
+dotnet tool restore
+.\scripts\Build-WindowsMsi.ps1
+```
+
+This publishes a self-contained `win-x64` Release build, harvests all output files into the installer (PDBs excluded), and produces `artifacts/windows/KeyVaultExplorer.msi`. The MSI is a dual-purpose package: the **Advanced** flow includes **install scope** (current user vs all users). Per-user installs typically land under `%LocalAppData%\Programs\`; per-machine installs under `Program Files\`. Silent installs can set scope via Windows Installer properties (for example `ALLUSERS` and `MSIINSTALLPERUSER`) as documented for dual-purpose packages. For a smaller MSI that requires the .NET desktop runtime on the machine, run `.\scripts\Build-WindowsMsi.ps1 -SelfContained:$false`.
+
+7. Run the app from your target platform tooling or with `dotnet build` plus the normal MAUI launch workflow for that platform.
 
 ## How Authentication Works
 

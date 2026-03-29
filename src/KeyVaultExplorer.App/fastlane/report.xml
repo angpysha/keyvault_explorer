@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="fastlane.lanes">
+    
+    
+    
+      
+      <testcase classname="fastlane.lanes" name="00: default_platform" time="0.000263">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="01: Switch to mac build_xcarchive lane" time="0.000134">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="02: dotnet publish /Volumes/CoreProjects/OpenSourced/key_vault_explorer/src/KeyVaultExplorer.App/KeyVaultExplorer.App.csproj -f net10.0-maccatalyst -c Release -r maccatalyst-arm64 -p:ArchiveOnBuild\=true -p:UseHardenedRuntime\=true -p:CreatePackage\=false -p:CodesignEntitlements\=/Volumes/CoreProjects/OpenSourced/key_vault_explorer/src/KeyVaultExplorer.App/Platforms/MacCatalyst/Entitlements.plist -p:DevelopmentTeam\=RFVKD37M39" time="5.525914">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="03: Switch to mac export_developer_id lane" time="7.7e-05">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="04: /usr/libexec/PlistBuddy -c Add\ :teamID\ string\ RFVKD37M39 /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/developer-id-export.generated.plist" time="0.009614">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="05: xcodebuild -exportArchive -archivePath /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/KeyVaultExplorer.xcarchive -exportPath /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/export -exportOptionsPlist /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/developer-id-export.generated.plist" time="2.238879">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="06: Switch to mac create_dmg lane" time="7.5e-05">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="07: hdiutil create -volname Key\ Vault\ Explorer -srcfolder /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/dmg_staging -ov -format UDZO /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/KeyVaultExplorer-macos.dmg" time="7.046201">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="08: Switch to mac notarize_dmg lane" time="0.000456">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="09: xcrun notarytool submit /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/KeyVaultExplorer-macos.dmg --keychain-profile KeyVaultNotaryApi --wait" time="59.595961">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="10: xcrun stapler staple /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/export/Key\ Vault\ Explorer.app" time="1.586596">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="11: xcrun stapler staple /Volumes/CoreProjects/OpenSourced/key_vault_explorer/artifacts/macos/KeyVaultExplorer-macos.dmg" time="0.474162">
+        
+      </testcase>
+    
+  </testsuite>
+</testsuites>

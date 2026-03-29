@@ -10,6 +10,9 @@ public static class MauiProgram
 	public static MauiApp CreateMauiApp()
 	{
 		var builder = MauiApp.CreateBuilder();
+
+		AzureCliService.ConfigureCurrentProcessEnvironment();
+
 		builder
 			.UseMauiApp<App>()
 			.ConfigureFonts(fonts =>

@@ -17,6 +17,22 @@ public sealed class AzureCliService
         "az.exe"
     ];
 
+    public static void ConfigureCurrentProcessEnvironment()
+    {
+        // Archived macOS apps start with a minimal PATH, so AzureCliCredential may not find `az`.
+        Environment.SetEnvironmentVariable("PATH", BuildProcessPathEnvironment());
+
+        var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(homeDirectory))
+        {
+            // Azure CLI token cache is stored in ~/.azure unless AZURE_CONFIG_DIR is overridden.
+            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AZURE_CONFIG_DIR")))
+            {
+                Environment.SetEnvironmentVariable("AZURE_CONFIG_DIR", Path.Combine(homeDirectory, ".azure"));
+            }
+        }
+    }
+
     public async Task<CliEnvironmentStatus> GetEnvironmentStatusAsync(CancellationToken cancellationToken = default)
     {
         var versionResult = await RunAzCommandAsync("--version", cancellationToken);

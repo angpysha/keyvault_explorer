@@ -1,0 +1,43 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <!-- Dual-purpose MSI: per-user or per-machine (single-package authoring). No custom Registry elements. -->
+  <?ifndef ProductVersion ?>
+  <?define ProductVersion = "1.0.0.0" ?>
+  <?endif?>
+
+  <Package
+      Name="Key Vault Explorer"
+      Manufacturer="Petrovskyi"
+      Version="$(ProductVersion)"
+      UpgradeCode="E4B7F0A1-2D9C-4F8E-B5A3-91C0D2E7F408"
+      Language="1033"
+      InstallerVersion="500"
+      Scope="perUserOrMachine"
+      Compressed="yes">
+    <SummaryInformation Description="Browse Azure Key Vault secrets using your Azure CLI session." />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <Feature Id="Main" Title="Key Vault Explorer" Level="1">
+      <ComponentGroupRef Id="AppPublishFiles" />
+    </Feature>
+
+    <!-- InstallScopeDlg: per-user vs per-machine; WIXUI_INSTALLDIR targets APPLICATIONFOLDER. -->
+    <ui:WixUI Id="WixUI_Advanced" />
+    <Property Id="ApplicationFolderName" Value="KeyVaultExplorer" />
+    <Property Id="WixAppFolder" Value="WixPerUserFolder" />
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="KeyVaultExplorer">
+        <Directory Id="APPLICATIONFOLDER" />
+      </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppPublishFiles" Directory="APPLICATIONFOLDER">
+      <Files Include="!(bindpath.publish)\**">
+        <Exclude Files="**\*.pdb" />
+      </Files>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

@@ -7,6 +7,15 @@
             This desktop app shells out to Azure CLI and should stay unsandboxed for local development.
             Revisit entitlements before packaging for store distribution.
         -->
+        <!-- Allow outbound HTTPS calls to Azure endpoints when app sandboxing is enabled in future. -->
+        <key>com.apple.security.network.client</key>
+        <true/>
+        <!-- Required by .NET runtime scenarios under Hardened Runtime. -->
+        <key>com.apple.security.cs.allow-jit</key>
+        <true/>
+        <!-- Keeps dynamic code paths functional for runtime components when notarized. -->
+        <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+        <true/>
     </dict>
 </plist>
 

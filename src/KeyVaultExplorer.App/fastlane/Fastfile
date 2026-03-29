@@ -1,0 +1,250 @@
+# frozen_string_literal: true
+
+require "fileutils"
+require "time"
+
+# Run from the app project directory:
+#   cd src/KeyVaultExplorer.App && bundle exec fastlane mac developer_id_dmg
+#
+# Environment (optional unless noted):
+#   NOTARY_KEYCHAIN_PROFILE — same name you chose when running store-credentials (used with submit).
+#     Submit example: xcrun notarytool submit ./My.dmg --keychain-profile "MyProfile" --wait
+#
+#     Create the keychain profile once. Each profile name holds ONE auth type only (Apple ID *or* API key).
+#     If you see "Cannot store both ...", use a different profile name for the second method, or delete the
+#     existing keychain item (Keychain Access → search "notary" / your profile name) and store again.
+#
+#     A) Apple ID + app-specific password (https://appleid.apple.com → App-Specific Passwords):
+#        xcrun notarytool store-credentials "KVE_Notary_AppleID" \
+#          --apple-id "you@example.com" --team-id "XXXXXXXXXX"
+#        (omit --password to get a secure prompt, or pass --password "xxxx-xxxx-xxxx-xxxx")
+#
+#     B) App Store Connect API key (better for CI): create a key in App Store Connect → Users and Access → Keys,
+#        download the .p8 file, then:
+#        xcrun notarytool store-credentials "KVE_Notary_Api" \
+#          --key "/path/to/AuthKey_XXXXX.p8" --key-id "XXXXXXXXXX" \
+#          --issuer "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" --team-id "XXXXXXXXXX"
+#
+#     Then: export NOTARY_KEYCHAIN_PROFILE=KVE_Notary_AppleID   # or KVE_Notary_Api
+#   CODESIGN_KEY            — passed to dotnet as -p:CodesignKey=...
+#   CODESIGN_PROVISION      — path to .provisionprofile for dotnet publish
+#   DEVELOPMENT_TEAM        — required for xcodebuild -exportArchive (10-char Apple Team ID).
+#                             Also passed to dotnet as -p:DevelopmentTeam= so the archive records a team.
+#   FASTLANE_TEAM_ID        — alternative to DEVELOPMENT_TEAM (e.g. from Appfile team_id).
+#   MACCATALYST_RID         — default maccatalyst-arm64
+#   Lane option: team_id:"XXXXXXXXXX"
+
+unless FastlaneCore::Helper.mac?
+  UI.user_error!("These lanes are intended to run on macOS.")
+end
+
+default_platform(:mac)
+
+FASTLANE_DIR = __dir__
+APP_DIR = File.expand_path("..", FASTLANE_DIR)
+REPO_ROOT = File.expand_path("../..", APP_DIR)
+ARTIFACTS_MACOS = File.join(REPO_ROOT, "artifacts", "macos")
+CSPROJ = File.join(APP_DIR, "KeyVaultExplorer.App.csproj")
+ENTITLEMENTS = File.join(APP_DIR, "Platforms", "MacCatalyst", "Entitlements.plist")
+EXPORT_PLIST_TEMPLATE = File.join(FASTLANE_DIR, "export_options", "developer-id-export.plist")
+ARCHIVE_NAME = "KeyVaultExplorer"
+APP_DISPLAY_NAME = "Key Vault Explorer"
+FRAMEWORK = "net10.0-maccatalyst"
+CONFIGURATION = "Release"
+
+def dotnet_publish_archive(codesign_key: nil, codesign_provision: nil, development_team: nil, runtime_id: "maccatalyst-arm64")
+  args = [
+    "publish", CSPROJ,
+    "-f", FRAMEWORK,
+    "-c", CONFIGURATION,
+    "-r", runtime_id,
+    "-p:ArchiveOnBuild=true",
+    "-p:UseHardenedRuntime=true",
+    "-p:CreatePackage=false",
+    "-p:CodesignEntitlements=#{ENTITLEMENTS}"
+  ]
+  args += ["-p:DevelopmentTeam=#{development_team}"] if development_team && !development_team.to_s.empty?
+  args += ["-p:CodesignKey=#{codesign_key}"] if codesign_key && !codesign_key.empty?
+  if codesign_provision && !codesign_provision.empty?
+    UI.user_error!("Provisioning profile not found: #{codesign_provision}") unless File.file?(codesign_provision)
+
+    args += ["-p:CodesignProvision=#{File.expand_path(codesign_provision)}"]
+  end
+
+  Dir.chdir(APP_DIR) do
+    sh("dotnet", *args)
+  end
+end
+
+def find_latest_xcarchive(not_older_than:)
+  archives_root = File.expand_path("~/Library/Developer/Xcode/Archives")
+  UI.user_error!("Xcode archives directory missing: #{archives_root}") unless File.directory?(archives_root)
+
+  candidates = Dir.glob(File.join(archives_root, "**", "*.xcarchive")).select do |path|
+    File.mtime(path) >= not_older_than - 120
+  end
+  UI.user_error!("No .xcarchive found under #{archives_root} from this build window.") if candidates.empty?
+
+  candidates.max_by { |p| File.mtime(p) }
+end
+
+def copy_archive_to_artifacts(source_archive)
+  FileUtils.mkdir_p(ARTIFACTS_MACOS)
+  dest = File.join(ARTIFACTS_MACOS, "#{ARCHIVE_NAME}.xcarchive")
+  FileUtils.rm_rf(dest) if File.exist?(dest)
+  FileUtils.cp_r(source_archive, dest)
+  dest
+end
+
+def resolve_development_team(options = {})
+  t = options[:team_id]&.to_s&.strip
+  t = ENV["DEVELOPMENT_TEAM"]&.strip if t.nil? || t.empty?
+  t = ENV["FASTLANE_TEAM_ID"]&.strip if t.nil? || t.empty?
+  t
+end
+
+def export_options_plist_path(team:)
+  t = team&.to_s&.strip
+  UI.user_error!(
+    "Apple Team ID is required for export (fixes \"No Team Found in Archive\"). Set DEVELOPMENT_TEAM or FASTLANE_TEAM_ID, " \
+    "or pass team_id:\"XXXXXXXXXX\" to the lane. Example: export DEVELOPMENT_TEAM=RFVKD37M39"
+  ) if t.nil? || t.empty?
+
+  out = File.join(ARTIFACTS_MACOS, "developer-id-export.generated.plist")
+  FileUtils.mkdir_p(File.dirname(out))
+  FileUtils.cp(EXPORT_PLIST_TEMPLATE, out)
+  sh("/usr/libexec/PlistBuddy", "-c", "Add :teamID string #{t}", out)
+  out
+end
+
+def export_signed_app(archive_path:, export_dir:, team:)
+  FileUtils.rm_rf(export_dir) if File.exist?(export_dir)
+  FileUtils.mkdir_p(export_dir)
+  plist = export_options_plist_path(team: team)
+  sh(
+    "xcodebuild",
+    "-exportArchive",
+    "-archivePath", archive_path,
+    "-exportPath", export_dir,
+    "-exportOptionsPlist", plist
+  )
+end
+
+def find_exported_app(export_dir)
+  apps = Dir.glob(File.join(export_dir, "*.app"))
+  UI.user_error!("No .app found in export directory: #{export_dir}") if apps.empty?
+
+  apps.first
+end
+
+def safe_dmg_basename(name)
+  name.gsub(/[^A-Za-z0-9._-]+/, "").empty? ? "app" : name.gsub(/[^A-Za-z0-9._-]+/, "")
+end
+
+def create_udzo_dmg(app_path:, dmg_path:, volume_name:)
+  staging = File.join(ARTIFACTS_MACOS, "dmg_staging")
+  FileUtils.rm_rf(staging) if File.exist?(staging)
+  FileUtils.mkdir_p(staging)
+  FileUtils.cp_r(app_path, staging)
+  apps_link = File.join(staging, "Applications")
+  FileUtils.rm_f(apps_link) if File.exist?(apps_link)
+  File.symlink("/Applications", apps_link)
+  FileUtils.mkdir_p(File.dirname(dmg_path))
+  FileUtils.rm_f(dmg_path) if File.exist?(dmg_path)
+  sh("hdiutil", "create", "-volname", volume_name, "-srcfolder", staging, "-ov", "-format", "UDZO", dmg_path)
+end
+
+def codesign_identity_spec
+  ENV["CODESIGN_IDENTITY"]&.strip
+end
+
+def codesign_if_identity(path, identity:)
+  return if identity.nil? || identity.empty?
+
+  sh("codesign", "--force", "--timestamp", "--sign", identity, path)
+end
+
+def notarize_and_staple(dmg_path:, app_path:, keychain_profile:)
+  UI.user_error!("NOTARY_KEYCHAIN_PROFILE is not set. Example: xcrun notarytool submit path/to.dmg --keychain-profile <profile> --wait") if keychain_profile.nil? || keychain_profile.empty?
+
+  sh("xcrun", "notarytool", "submit", dmg_path, "--keychain-profile", keychain_profile, "--wait")
+  sh("xcrun", "stapler", "staple", app_path)
+  sh("xcrun", "stapler", "staple", dmg_path)
+end
+
+platform :mac do
+  desc "Build a Mac Catalyst .xcarchive via dotnet publish (ArchiveOnBuild)"
+  lane :build_xcarchive do |options|
+    rid = options[:runtime_id] || ENV["MACCATALYST_RID"] || "maccatalyst-arm64"
+    team = resolve_development_team(options)
+    if team.nil? || team.empty?
+      UI.important("No team id: set DEVELOPMENT_TEAM (or FASTLANE_TEAM_ID / lane team_id:) so the archive and export match your Apple Developer team.")
+    end
+    started = Time.now.utc - 5
+    dotnet_publish_archive(
+      codesign_key: options[:codesign_key] || ENV["CODESIGN_KEY"],
+      codesign_provision: options[:codesign_provision] || ENV["CODESIGN_PROVISION"],
+      development_team: team,
+      runtime_id: rid
+    )
+    latest = find_latest_xcarchive(not_older_than: started)
+    archive_path = copy_archive_to_artifacts(latest)
+    UI.success("xcarchive: #{archive_path}")
+    archive_path
+  end
+
+  desc "Export Developer ID–signed .app from an xcarchive"
+  lane :export_developer_id do |options|
+    archive_path = options[:archive_path] || File.join(ARTIFACTS_MACOS, "#{ARCHIVE_NAME}.xcarchive")
+    UI.user_error!("Archive not found: #{archive_path}") unless File.directory?(archive_path)
+
+    team = resolve_development_team(options)
+    export_dir = options[:export_path] || File.join(ARTIFACTS_MACOS, "export")
+    export_signed_app(archive_path: archive_path, export_dir: export_dir, team: team)
+    app_path = find_exported_app(export_dir)
+    UI.success("Exported app: #{app_path}")
+    app_path
+  end
+
+  desc "Build UDZO DMG (unsigned DMG until you run codesign_dmg / full lane)"
+  lane :create_dmg do |options|
+    export_dir = options[:export_path] || File.join(ARTIFACTS_MACOS, "export")
+    app_path = options[:app_path] || find_exported_app(export_dir)
+    base = safe_dmg_basename(options[:dmg_basename] || APP_DISPLAY_NAME)
+    dmg_path = options[:dmg_path] || File.join(ARTIFACTS_MACOS, "#{base}-macos.dmg")
+    create_udzo_dmg(app_path: app_path, dmg_path: dmg_path, volume_name: options[:volume_name] || APP_DISPLAY_NAME)
+    identity = codesign_identity_spec
+    codesign_if_identity(dmg_path, identity: identity) if identity
+    UI.success("DMG: #{dmg_path}")
+    { dmg_path: dmg_path, app_path: app_path }
+  end
+
+  desc "Notarize DMG (notarytool) and staple app + DMG"
+  lane :notarize_dmg do |options|
+    dmg_path = options[:dmg_path] || File.join(ARTIFACTS_MACOS, "#{safe_dmg_basename(APP_DISPLAY_NAME)}-macos.dmg")
+    app_path = options[:app_path] || find_exported_app(options[:export_path] || File.join(ARTIFACTS_MACOS, "export"))
+    profile = options[:keychain_profile] || ENV["NOTARY_KEYCHAIN_PROFILE"]
+    notarize_and_staple(dmg_path: dmg_path, app_path: app_path, keychain_profile: profile)
+    UI.success("Notarization complete for #{dmg_path}")
+  end
+
+  desc "Full flow: xcarchive → export (Developer ID) → DMG → codesign DMG → notarize + staple"
+  lane :developer_id_dmg do |options|
+    build_xcarchive(options)
+    export_developer_id(options)
+    result = create_dmg(options)
+    identity = codesign_identity_spec
+    if identity.nil? || identity.empty?
+      UI.important("CODESIGN_IDENTITY not set; skipping explicit DMG codesign (export may already satisfy notary requirements).")
+    else
+      codesign_if_identity(result[:dmg_path], identity: identity)
+    end
+    notarize_dmg(options.merge(dmg_path: result[:dmg_path], app_path: result[:app_path]))
+    UI.success("Artifacts under #{ARTIFACTS_MACOS}")
+  end
+
+  desc "Legacy lane name — same as developer_id_dmg"
+  lane :sign_mac_os_app_and_create_dmg do |options|
+    developer_id_dmg(options)
+  end
+end
