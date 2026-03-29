@@ -106,6 +106,7 @@ $wixBuildArgs = @(
     "-arch", "x64",
     "-bindpath", "publish=$publishDirFull",
     "-define", "ProductVersion=$productVersion",
+    "-pdbtype", "none",
     "-out", $msiOut
 )
 Invoke-Wix -Arguments $wixBuildArgs

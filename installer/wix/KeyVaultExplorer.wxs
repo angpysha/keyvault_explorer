@@ -13,6 +13,9 @@
       InstallerVersion="500"
       Scope="perUserOrMachine"
       Compressed="yes">
+    <!-- Embed payload in the .msi (no separate .cab next to the installer). MSI format still uses a cabinet stream internally. -->
+    <MediaTemplate EmbedCab="yes" />
+
     <SummaryInformation Description="Browse Azure Key Vault secrets using your Azure CLI session." />
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
