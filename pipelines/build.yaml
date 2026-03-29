@@ -74,42 +74,41 @@ stages:
               publishLocation: "pipeline"
             condition: succeeded()
 
-  # - stage: WindowsBuild
-  #   displayName: "Windows — Release + WiX MSI"
-  #   dependsOn: []
-  #   pool:
-  #     vmImage: $(WINDOWS_VM_IMAGE)
-  #   jobs:
-  #     - job: windows_msi
-  #       displayName: "Build Windows MSI"
-  #       steps:
-  #         - checkout: self
-  #           fetchDepth: 0
+  - stage: WindowsBuild
+    displayName: "Windows — Release + WiX MSI"
+    dependsOn: []
+    pool: { name: $(WINDOWS_POOL_NAME) }
+    jobs:
+      - job: windows_msi
+        displayName: "Build Windows MSI"
+        steps:
+          - checkout: self
+            fetchDepth: 0
 
-  #         - task: UseDotNet@2
-  #           displayName: "Install .NET SDK"
-  #           inputs:
-  #             packageType: sdk
-  #             version: $(DOTNET_VERSION)
-  #             includePreviewVersions: true
+          # - task: UseDotNet@2
+          #   displayName: "Install .NET SDK"
+          #   inputs:
+          #     packageType: sdk
+          #     version: $(DOTNET_VERSION)
+          #     includePreviewVersions: true
 
-  #         - pwsh: |
-  #             dotnet --info
-  #             dotnet workload install maui --source https://api.nuget.org/v3/index.json
-  #           displayName: "Install MAUI workload"
+          # - pwsh: |
+          #     dotnet --info
+          #     dotnet workload install maui --source https://api.nuget.org/v3/index.json
+          #   displayName: "Install MAUI workload"
 
-  #         - pwsh: |
-  #             Set-StrictMode -Version Latest
-  #             $ErrorActionPreference = "Stop"
-  #             Set-Location "$(Build.SourcesDirectory)"
-  #             dotnet tool restore
-  #             & "$(Build.SourcesDirectory)/scripts/Build-WindowsMsi.ps1"
-  #           displayName: "Publish + WiX (Build-WindowsMsi.ps1)"
+          - pwsh: |
+              Set-StrictMode -Version Latest
+              $ErrorActionPreference = "Stop"
+              Set-Location "$(Build.SourcesDirectory)"
+              dotnet tool restore
+              & "$(Build.SourcesDirectory)/scripts/Build-WindowsMsi.ps1"
+            displayName: "Publish + WiX (Build-WindowsMsi.ps1)"
 
-  #         - task: PublishPipelineArtifact@1
-  #           displayName: "Publish Windows artifacts"
-  #           inputs:
-  #             targetPath: "$(Build.SourcesDirectory)/artifacts/windows"
-  #             artifact: "windows-msi"
-  #             publishLocation: "pipeline"
-  #           condition: succeeded()
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish Windows artifacts"
+            inputs:
+              targetPath: "$(Build.SourcesDirectory)/artifacts/windows"
+              artifact: "windows-msi"
+              publishLocation: "pipeline"
+            condition: succeeded()
